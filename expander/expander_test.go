@@ -5,7 +5,6 @@ import (
 	"fmt"
 	. "github.com/smartystreets/goconvey/convey"
 	"net/url"
-	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -115,7 +114,9 @@ func TestExpander(t *testing.T) {
 			So(ssl["UI"], ShouldEqual, simpleMap["UI"])
 		})
 	})
+}
 
+func TestExpanderModification(t *testing.T) {
 	Convey("It should create a modification tree:", t, func() {
 		Convey("Building a modification tree should be an empty expansion list when the expansion is *", func() {
 			expansion := "*"
@@ -223,7 +224,9 @@ func TestExpander(t *testing.T) {
 			So(result[0].Children[0].Children[0].Value, ShouldEqual, "C")
 		})
 	})
+}
 
+func TestExpanderFiltering(t *testing.T) {
 	Convey("It should filter out the fields based on the given modification tree:", t, func() {
 		Convey("Filtering should return an empty map when no Data is given", func() {
 			filters := Filters{}
@@ -337,9 +340,10 @@ func TestExpander(t *testing.T) {
 				So(v, ShouldEqual, simpleMap[key])
 			}
 		})
-
 	})
+}
 
+func TestExpanderFiltering2(t *testing.T) {
 	Convey("It should filter out the fields based on the given modification tree during expansion:", t, func() {
 		Convey("Filtering should return the full map when no Filters is given", func() {
 			singleLevel := SimpleSingleLevel{S: "bar", B: false, I: -1, F: 1.1, UI: 1}
@@ -387,119 +391,9 @@ func TestExpander(t *testing.T) {
 			}
 		})
 	})
+}
 
-	Convey("It should identify if given field is a reference field:", t, func() {
-		Convey("Identifying should return false when field is not a struct", func() {
-			info := Info{"A name", 100}
-			v := reflect.ValueOf(info)
-
-			result := isReference(v.Field(0))
-
-			So(result, ShouldBeFalse)
-		})
-
-		Convey("Identifying should return false when field is not a hypermedia link", func() {
-			singleLevel := SimpleSingleLevel{S: "bar", B: false, I: -1, F: 1.1, UI: 1}
-			complexSingleLevel := ComplexSingleLevel{S: "something", SSL: singleLevel}
-
-			v := reflect.ValueOf(complexSingleLevel)
-
-			result := isReference(v.Field(0))
-
-			So(result, ShouldBeFalse)
-		})
-
-		Convey("Identifying should return true when field is a hypermedia link", func() {
-			singleLevel := SimpleSingleLevel{L: Link{Ref: "http://valid", Rel: "nothing", Verb: "GET"}}
-
-			v := reflect.ValueOf(singleLevel.L)
-
-			result := isReference(v)
-
-			So(result, ShouldBeTrue)
-		})
-
-		Convey("Identifying should return false when field doesn't have a hypermedia link", func() {
-			m := map[string]interface{}{
-				"a_key": "something",
-			}
-
-			result := hasReference(m)
-
-			So(result, ShouldBeFalse)
-		})
-
-		Convey("Identifying should return true when field has a hypermedia link", func() {
-			m := map[string]interface{}{
-				"a_key": "something",
-				"a_link": map[string]interface{}{
-					"ref":  "http://valid",
-					"rel":  "a-relation",
-					"verb": "GET",
-				},
-			}
-
-			result := hasReference(m)
-
-			So(result, ShouldBeTrue)
-		})
-
-		Convey("Identifying should return true when nested field has a hypermedia link", func() {
-			m := map[string]interface{}{
-				"a_key": "something",
-				"another_key": map[string]interface{}{
-					"some-id": "333",
-					"a_link": map[string]interface{}{
-						"ref":  "http://valid",
-						"rel":  "a-relation",
-						"verb": "GET",
-					},
-				},
-			}
-
-			result := hasReference(m)
-
-			So(result, ShouldBeTrue)
-		})
-
-		Convey("Identifying should return false when nested field doesn't have a hypermedia link", func() {
-			m := map[string]interface{}{
-				"a_key": "something",
-				"another_key": map[string]interface{}{
-					"some-id": "333",
-					"another_type": map[string]interface{}{
-						"something": "yeap",
-					},
-				},
-			}
-
-			result := hasReference(m)
-
-			So(result, ShouldBeFalse)
-		})
-	})
-
-	Convey("It should find expansion URI if given field is a reference field:", t, func() {
-		Convey("Identifying should return empty string when no ref field", func() {
-			info := Info{"A name", 100}
-			v := reflect.ValueOf(info)
-
-			result := getReferenceURI(v)
-
-			So(result, ShouldBeEmpty)
-		})
-
-		Convey("Identifying should return full URI when field is a ref field", func() {
-			singleLevel := SimpleSingleLevel{L: Link{Ref: "http://valid", Rel: "nothing", Verb: "GET"}}
-
-			v := reflect.ValueOf(singleLevel.L)
-
-			result := getReferenceURI(v)
-
-			So(result, ShouldEqual, singleLevel.L.Ref)
-		})
-	})
-
+func TestRecognizeDBRefExpansion(t *testing.T) {
 	Convey("It should fetch the underlying data from the Mongo during expansion:", t, func() {
 		Convey("Fetching should return the same value when Mongo flag is not set", func() {
 			simple := SimpleWithDBRef{Name: "foo", Ref: DBRef{"a collection", "an id", "a database"}}
@@ -526,42 +420,30 @@ func TestExpander(t *testing.T) {
 			So(mongoRef["Database"], ShouldEqual, simple.Ref.Database)
 		})
 
-		Convey("Fetching should return the same value when Mongo flag is set to false", func() {
-			simple := SimpleWithDBRef{Name: "foo", Ref: DBRef{"a collection", "an id", "a database"}}
-
-			ExpanderConfig = Configuration{UsingMongo: false}
-			result := Expand(simple, "*", "")
-			mongoRef := result["Ref"].(map[string]interface{})
-
-			So(result["name"], ShouldEqual, simple.Name)
-			So(mongoRef["Collection"], ShouldEqual, simple.Ref.Collection)
-			So(mongoRef["Id"], ShouldEqual, simple.Ref.Id)
-			So(mongoRef["Database"], ShouldEqual, simple.Ref.Database)
-		})
-
 		Convey("Fetching should return the same value when Mongo flag is set to true without IdURIs", func() {
 			simple := SimpleWithDBRef{Name: "foo", Ref: DBRef{"a collection", MongoId("123"), "a database"}}
+			var uris = make(map[string]string)
+			AddResolver(NewMongoDbRefResolver(uris, false))
 
-			ExpanderConfig = Configuration{UsingMongo: true}
 			result := Expand(simple, "*", "")
-			mongoRef := result["Ref"].(map[string]interface{})
+			mongoRef := result["Ref"].(DBRef)
 
 			So(result["name"], ShouldEqual, simple.Name)
-			So(mongoRef["Collection"], ShouldEqual, simple.Ref.Collection)
-			So(mongoRef["Id"], ShouldEqual, simple.Ref.Id)
-			So(mongoRef["Database"], ShouldEqual, simple.Ref.Database)
+			So(mongoRef.Collection, ShouldEqual, simple.Ref.Collection)
+			So(mongoRef.Id, ShouldEqual, simple.Ref.Id)
+			So(mongoRef.Database, ShouldEqual, simple.Ref.Database)
 		})
 
 		Convey("Fetching should return the underlying value when Mongo flag is set to true with proper IdURIs", func() {
 			simple := SimpleWithDBRef{Name: "foo", Ref: DBRef{"a collection", MongoId("123"), "a database"}}
 			info := Info{"A name", 100}
 			uris := map[string]string{simple.Ref.Collection: "http://some-uri/id"}
+			AddResolver(NewMongoDbRefResolver(uris, false))
 
-			ExpanderConfig = Configuration{UsingMongo: true, IdURIs: uris}
-			mockedFn := getContentFrom
-			getContentFrom = func(url *url.URL) string {
+			mockedFn := makeGetCall
+			makeGetCall = func(url *url.URL) ([]byte, bool) {
 				result, _ := json.Marshal(info)
-				return string(result)
+				return result, true
 			}
 
 			result := Expand(simple, "*", "")
@@ -571,7 +453,7 @@ func TestExpander(t *testing.T) {
 			So(mongoRef["Name"], ShouldEqual, info.Name)
 			So(mongoRef["Age"], ShouldEqual, info.Age)
 
-			getContentFrom = mockedFn
+			makeGetCall = mockedFn
 		})
 
 		Convey("Fetching should return a list of underlying values when Mongo flag is set to true with proper IdURIs", func() {
@@ -587,12 +469,11 @@ func TestExpander(t *testing.T) {
 				"a collection":       "http://some-uri/id",
 				"another collection": "http://some-other-uri/id",
 			}
-
-			ExpanderConfig = Configuration{UsingMongo: true, IdURIs: uris}
-			mockedFn := getContentFrom
-			getContentFrom = func(url *url.URL) string {
+			AddResolver(NewMongoDbRefResolver(uris, false))
+			mockedFn := makeGetCall
+			makeGetCall = func(url *url.URL) ([]byte, bool) {
 				result, _ := json.Marshal(info)
-				return string(result)
+				return result, true
 			}
 
 			result := Expand(simple, "*", "")
@@ -606,12 +487,13 @@ func TestExpander(t *testing.T) {
 			So(child2["Name"], ShouldEqual, info.Name)
 			So(child2["Age"], ShouldEqual, info.Age)
 
-			getContentFrom = mockedFn
+			makeGetCall = mockedFn
 		})
 	})
+}
 
+func TestResolveMongoDBRefs(t *testing.T) {
 	Convey("Fetching should return a list of underlying values when Mongo flag is set to true with proper IdURIs and bulk-request true, it should only make one request per collection", t, func() {
-		ExpanderConfig.MakeBulkRequest = true
 		simple := SimpleWithMultipleDBRefs{
 			Name: "foo",
 			Refs: []DBRef{
@@ -628,11 +510,14 @@ func TestExpander(t *testing.T) {
 			"another collection": "http://some-other-uri?ids=",
 		}
 
-		ExpanderConfig = Configuration{UsingMongo: true, IdURIs: uris, MakeBulkRequest: true, UsingCache: false}
-		mockedFn := getContentFrom
+		AddResolver(NewMongoDbRefResolver(uris, true))
+		mockedFn := makeGetCall
 
 		apiCallCounter := 0
-		getContentFrom = func(murl *url.URL) string {
+		makeGetCall = func(murl *url.URL) ([]byte, bool) {
+			if murl == nil {
+				return []byte{}, false
+			}
 			apiCallCounter++
 			var bulkResponse struct {
 				Data []interface{} `json:"data"`
@@ -645,11 +530,10 @@ func TestExpander(t *testing.T) {
 			}
 
 			result, _ := json.Marshal(bulkResponse)
-			return string(result)
+			return result, true
 		}
 		result := Expand(simple, "*", "")
 
-		fmt.Println()
 		mongoRef := result["Refs"].([]interface{})
 		child1 := mongoRef[0].(map[string]interface{})
 		child2 := mongoRef[1].(map[string]interface{})
@@ -663,19 +547,20 @@ func TestExpander(t *testing.T) {
 		So(child3["Name"], ShouldEqual, info3.Name)
 		So(child3["Age"], ShouldEqual, info3.Age)
 
-		ExpanderConfig.MakeBulkRequest = false
-		getContentFrom = mockedFn
+		makeGetCall = mockedFn
 	})
+}
 
+func TestInvalidFilters(t *testing.T) {
 	Convey("It should detect invalid filters and return data untouched", t, func() {
 		Convey("Open brackets should be handled as invalid filter and not expand", func() {
 			singleLevel := SimpleSingleLevel{L: Link{Ref: "http://valid", Rel: "nothing", Verb: "GET"}}
 			info := Info{"A name", 100}
 
-			mockedFn := getContentFrom
-			getContentFrom = func(url *url.URL) string {
+			mockedFn := makeGetCall
+			makeGetCall = func(murl *url.URL) ([]byte, bool) {
 				result, _ := json.Marshal(info)
-				return string(result)
+				return result, true
 			}
 
 			result := Expand(singleLevel, "*,((", "")
@@ -684,7 +569,7 @@ func TestExpander(t *testing.T) {
 			//still same after expansion, because filter is invalid
 			So(actual["ref"], ShouldEqual, singleLevel.L.Ref)
 
-			getContentFrom = mockedFn
+			makeGetCall = mockedFn
 		})
 
 		Convey("open brackets shouldbe handled as invalid filter and not apply filter", func() {
@@ -699,19 +584,10 @@ func TestExpander(t *testing.T) {
 			So(result["UI"], ShouldEqual, singleLevel.UI)
 		})
 	})
+}
 
-	Convey("It should fetch the underlying data from the URIs during expansion:", t, func() {
-		Convey("Fetching should return the same value when non-URI data structure given", func() {
-			singleLevel := SimpleSingleLevel{L: Link{Ref: "non-URI", Rel: "nothing", Verb: "GET"}}
-
-			result := Expand(singleLevel, "*", "")
-			actual := result["L"].(map[string]interface{})
-
-			So(actual["ref"], ShouldEqual, singleLevel.L.Ref)
-			So(actual["rel"], ShouldEqual, singleLevel.L.Rel)
-			So(actual["verb"], ShouldEqual, singleLevel.L.Verb)
-		})
-
+func TestFetchFromURI(t *testing.T) {
+	/*	Convey("It should fetch the underlying data from the URIs during expansion:", t, func() {
 		Convey("Fetching should return the same value when non-URI data structure given", func() {
 			singleLevel := SimpleSingleLevel{L: Link{Ref: "non-URI", Rel: "nothing", Verb: "GET"}}
 
@@ -727,10 +603,10 @@ func TestExpander(t *testing.T) {
 			singleLevel := SimpleSingleLevel{L: Link{Ref: "http://valid", Rel: "nothing", Verb: "GET"}}
 			info := Info{"A name", 100}
 
-			mockedFn := getContentFrom
-			getContentFrom = func(url *url.URL) string {
+			mockedFn := makeGetCall
+			makeGetCall = func(murl *url.URL) ([]byte, bool) {
 				result, _ := json.Marshal(info)
-				return string(result)
+				return result, true
 			}
 
 			result := Expand(singleLevel, "*", "")
@@ -739,7 +615,7 @@ func TestExpander(t *testing.T) {
 			So(actual["Name"], ShouldEqual, info.Name)
 			So(actual["Age"], ShouldEqual, info.Age)
 
-			getContentFrom = mockedFn
+			makeGetCall = mockedFn
 		})
 
 		Convey("Fetching should replace an array of values with expanded data structures when valid URIs given", func() {
@@ -753,12 +629,12 @@ func TestExpander(t *testing.T) {
 				Info{"Another name", 200},
 			}
 
-			mockedFn := getContentFrom
+			mockedFn := makeGetCall
 			index := 0
-			getContentFrom = func(url *url.URL) string {
+			makeGetCall = func(murl *url.URL) ([]byte, bool) {
 				result, _ := json.Marshal(info[index])
 				index = index + 1
-				return string(result)
+				return result, true
 			}
 
 			simpleWithLinks := SimpleWithLinks{"something", links}
@@ -775,239 +651,174 @@ func TestExpander(t *testing.T) {
 				So(member["Age"], ShouldEqual, info[i].Age)
 			}
 
-			getContentFrom = mockedFn
+			makeGetCall = mockedFn
 		})
 
-		Convey("Fetching should replace the value recursively with expanded data structure when valid URIs given", func() {
-			singleLevel1 := SimpleSingleLevel{S: "one", L: Link{Ref: "http://valid1/ssl", Rel: "nothing1", Verb: "GET"}}
-			singleLevel2 := SimpleSingleLevel{S: "two", L: Link{Ref: "http://valid2/info", Rel: "nothing2", Verb: "GET"}}
-			info := Info{"A name", 100}
 
-			mockedFn := getContentFrom
-			index := 0
-			getContentFrom = func(url *url.URL) string {
-				var result []byte
-				if index > 0 {
-					result, _ = json.Marshal(info)
-					return string(result)
-				}
-				result, _ = json.Marshal(singleLevel2)
-				index = index + 1
-				return string(result)
-			}
+				Convey("Fetching should replace the value recursively with expanded data structure when valid URIs given", func() {
+					singleLevel1 := SimpleSingleLevel{S: "one", L: Link{Ref: "http://valid1/ssl", Rel: "nothing1", Verb: "GET"}}
+					singleLevel2 := SimpleSingleLevel{S: "two", L: Link{Ref: "http://valid2/info", Rel: "nothing2", Verb: "GET"}}
+					info := Info{"A name", 100}
 
-			result := Expand(singleLevel1, "*", "")
-			parent := result["L"].(map[string]interface{})
-			child := parent["L"].(map[string]interface{})
-
-			So(result["S"], ShouldEqual, singleLevel1.S)
-			So(parent["S"], ShouldEqual, singleLevel2.S)
-			So(child["Name"], ShouldEqual, info.Name)
-			So(child["Age"], ShouldEqual, info.Age)
-
-			getContentFrom = mockedFn
-		})
-
-		Convey("Expanding should replace the value recursively and filter the expanded data structure when valid URIs given", func() {
-			singleLevel1 := SimpleSingleLevel{S: "one", L: Link{Ref: "http://valid1/ssl", Rel: "nothing1", Verb: "GET"}}
-			singleLevel2 := SimpleSingleLevel{S: "two", L: Link{Ref: "http://valid2/info", Rel: "nothing2", Verb: "GET"}}
-
-			mockedFn := getContentFrom
-			getContentFrom = func(url *url.URL) string {
-				var result []byte
-				result, _ = json.Marshal(singleLevel2)
-				return string(result)
-			}
-
-			result := Expand(singleLevel1, "L", "")
-			parent := result["L"].(map[string]interface{})
-			child := parent["L"].(map[string]interface{})
-
-			So(result["S"], ShouldEqual, singleLevel1.S)
-			So(parent["S"], ShouldEqual, singleLevel2.S)
-			So(child["ref"], ShouldEqual, singleLevel2.L.Ref)
-			So(child["rel"], ShouldEqual, singleLevel2.L.Rel)
-			So(child["verb"], ShouldEqual, singleLevel2.L.Verb)
-
-			getContentFrom = mockedFn
-		})
-
-		Convey("Expanding should replace the value recursively and filter the expanded data structure when data contains a list of nested sub-types", func() {
-			link1 := Link{Ref: "http://valid1/ssl", Rel: "nothing1", Verb: "GET"}
-			link2 := Link{Ref: "http://valid2/ssl", Rel: "nothing2", Verb: "GET"}
-			singleLevel := SimpleSingleLevel{S: "one", L: link1}
-			info := Info{"A name", 100}
-			simpleWithLinks := SimpleWithLinks{
-				Name:    "lorem",
-				Members: []Link{link1, link2},
-			}
-
-			mockedFn := getContentFrom
-			index := 0
-			getContentFrom = func(url *url.URL) string {
-				var result []byte
-				index = index + 1
-				if index%2 == 0 {
-					result, _ = json.Marshal(info)
-					return string(result)
-				}
-				result, _ = json.Marshal(singleLevel)
-				return string(result)
-			}
-
-			result := Expand(simpleWithLinks, "Members(L)", "Name,Members(S,L)")
-			parent := result["Members"].([]interface{})
-
-			So(len(result), ShouldEqual, 2)
-
-			child1 := parent[0].(map[string]interface{})
-			So(child1["S"], ShouldEqual, singleLevel.S)
-
-			actualLink := child1["L"].(map[string]interface{})
-			So(actualLink["Name"], ShouldEqual, info.Name)
-
-			getContentFrom = mockedFn
-		})
-
-		Convey("Expanding array should return the data with the array as root item ", func() {
-
-			Convey("Expanding should return the same value if there is no MongoDB reference", func() {
-
-				expectedItem1 := Info{"A name", 100}
-				expectedItem2 := Info{"B name", 100}
-				expectedItem3 := Info{"C name", 100}
-				expectedArray := []Info{expectedItem1, expectedItem2, expectedItem3}
-
-				result := ExpandArray(expectedArray, "*", "")
-
-				So(len(result), ShouldEqual, 3)
-				result1 := result[0].(map[string]interface{})
-				result2 := result[1].(map[string]interface{})
-				result3 := result[2].(map[string]interface{})
-				So(result1["Name"], ShouldEqual, expectedItem1.Name)
-				So(result2["Name"], ShouldEqual, expectedItem2.Name)
-				So(result3["Name"], ShouldEqual, expectedItem3.Name)
-			})
-
-			Convey("Expanding should return the filtered array if there is filter defined", func() {
-
-				expectedItem1 := Info{"A name", 100}
-				expectedItem2 := Info{"B name", 101}
-				expectedItem3 := Info{"C name", 102}
-				expectedArray := []Info{expectedItem1, expectedItem2, expectedItem3}
-
-				result := ExpandArray(expectedArray, "*", "Age")
-
-				So(len(result), ShouldEqual, 3)
-				result1 := result[0].(map[string]interface{})
-				result2 := result[1].(map[string]interface{})
-				result3 := result[2].(map[string]interface{})
-				So(result1["Name"], ShouldBeNil)
-				So(result2["Name"], ShouldBeNil)
-				So(result3["Age"], ShouldNotBeNil)
-			})
-
-			Convey("Expanding should return the underlying value of the root of the array items from Mongo", func() {
-				item1 := DBRef{"a collection", MongoId("123"), "a database"}
-				item2 := DBRef{"a collection", MongoId("456"), "a database"}
-				items := []DBRef{item1, item2}
-
-				info1 := Info{"A name", 100}
-				info2 := Info{"B name", 100}
-				infos := []Info{info1, info2}
-
-				uris := map[string]string{item1.Collection: "http://some-uri/id"}
-
-				ExpanderConfig = Configuration{UsingMongo: true, IdURIs: uris}
-				mockedFn := getContentFrom
-				getContentFrom = func(url *url.URL) string {
-					fmt.Println(url)
-					if url.Path == "/id/123" {
-						result, _ := json.Marshal(info1)
-						return string(result)
-					} else {
-						result, _ := json.Marshal(info2)
-						return string(result)
+					mockedFn := makeGetCall
+					index := 0
+					makeGetCall = func(murl *url.URL) ([]byte, bool) {
+						var result []byte
+						if index > 0 {
+							result, _ = json.Marshal(info)
+							return result, true
+						}
+						result, _ = json.Marshal(singleLevel2)
+						index = index + 1
+						return result, true
 					}
+
+					result := Expand(singleLevel1, "*", "")
+					parent := result["L"].(map[string]interface{})
+					fmt.Println(result)
+					child := parent["L"].(map[string]interface{})
+
+					So(result["S"], ShouldEqual, singleLevel1.S)
+					So(parent["S"], ShouldEqual, singleLevel2.S)
+					So(child["Name"], ShouldEqual, info.Name)
+					So(child["Age"], ShouldEqual, info.Age)
+
+					makeGetCall = mockedFn
+				})
+
+			Convey("Expanding should replace the value recursively and filter the expanded data structure when valid URIs given", func() {
+				singleLevel1 := SimpleSingleLevel{S: "one", L: Link{Ref: "http://valid1/ssl", Rel: "nothing1", Verb: "GET"}}
+				singleLevel2 := SimpleSingleLevel{S: "two", L: Link{Ref: "http://valid2/info", Rel: "nothing2", Verb: "GET"}}
+
+				mockedFn := makeGetCall
+				makeGetCall = func(murl *url.URL) ([]byte, bool) {
+					var result []byte
+					result, _ = json.Marshal(singleLevel2)
+					return result, true
 				}
 
-				result := ExpandArray(items, "*", "")
-				So(len(result), ShouldEqual, len(infos))
+				result := Expand(singleLevel1, "L", "")
+				parent := result["L"].(map[string]interface{})
+				child := parent["L"].(map[string]interface{})
 
-				result1 := result[0].(map[string]interface{})
-				result2 := result[1].(map[string]interface{})
-				So(result1["Name"], ShouldEqual, info1.Name)
-				So(result2["Name"], ShouldEqual, info2.Name)
+				So(result["S"], ShouldEqual, singleLevel1.S)
+				So(parent["S"], ShouldEqual, singleLevel2.S)
+				So(child["ref"], ShouldEqual, singleLevel2.L.Ref)
+				So(child["rel"], ShouldEqual, singleLevel2.L.Rel)
+				So(child["verb"], ShouldEqual, singleLevel2.L.Verb)
 
-				getContentFrom = mockedFn
+				makeGetCall = mockedFn
 			})
+
+			Convey("Expanding should replace the value recursively and filter the expanded data structure when data contains a list of nested sub-types", func() {
+				link1 := Link{Ref: "http://valid1/ssl", Rel: "nothing1", Verb: "GET"}
+				link2 := Link{Ref: "http://valid2/ssl", Rel: "nothing2", Verb: "GET"}
+				singleLevel := SimpleSingleLevel{S: "one", L: link1}
+				info := Info{"A name", 100}
+				simpleWithLinks := SimpleWithLinks{
+					Name:    "lorem",
+					Members: []Link{link1, link2},
+				}
+
+				mockedFn := makeGetCall
+				index := 0
+				makeGetCall = func(murl *url.URL) ([]byte, bool) {
+					var result []byte
+					index = index + 1
+					if index%2 == 0 {
+						result, _ = json.Marshal(info)
+						return result, true
+					}
+					result, _ = json.Marshal(singleLevel)
+					return result, true
+				}
+
+				result := Expand(simpleWithLinks, "Members(L)", "Name,Members(S,L)")
+				parent := result["Members"].([]interface{})
+
+				So(len(result), ShouldEqual, 2)
+
+				child1 := parent[0].(map[string]interface{})
+				So(child1["S"], ShouldEqual, singleLevel.S)
+
+				actualLink := child1["L"].(map[string]interface{})
+				So(actualLink["Name"], ShouldEqual, info.Name)
+
+				makeGetCall = mockedFn
+			})
+	*/
+	Convey("Expanding array should return the data with the array as root item:", t, func() {
+
+		Convey("Expanding should return the same value if there is no MongoDB reference", func() {
+
+			expectedItem1 := Info{"A name", 100}
+			expectedItem2 := Info{"B name", 100}
+			expectedItem3 := Info{"C name", 100}
+			expectedArray := []Info{expectedItem1, expectedItem2, expectedItem3}
+
+			result := ExpandArray(expectedArray, "*", "")
+
+			So(len(result), ShouldEqual, 3)
+			result1 := result[0].(map[string]interface{})
+			result2 := result[1].(map[string]interface{})
+			result3 := result[2].(map[string]interface{})
+			So(result1["Name"], ShouldEqual, expectedItem1.Name)
+			So(result2["Name"], ShouldEqual, expectedItem2.Name)
+			So(result3["Name"], ShouldEqual, expectedItem3.Name)
 		})
-		Convey("When caching is enabled, it should emit a second call to the same URI of a valid reference", func() {
-			ExpanderConfig.UsingCache = true
-			ExpanderConfig.CacheExpInSeconds = 86400
-			Convey("Fetching a valid Reference first time should make GET call and replace the data correctly", func() {
-				singleLevel := SimpleSingleLevel{L: Link{Ref: "http://valid", Rel: "nothing", Verb: "GET"}}
-				info := Info{"A name", 100}
 
-				mockedFn := getContentFrom
-				makeGetCall = func(url *url.URL) string {
-					result, _ := json.Marshal(info)
-					return string(result)
-				}
+		Convey("Expanding should return the filtered array if there is filter defined", func() {
 
-				result := Expand(singleLevel, "*", "")
-				actual := result["L"].(map[string]interface{})
+			expectedItem1 := Info{"A name", 100}
+			expectedItem2 := Info{"B name", 101}
+			expectedItem3 := Info{"C name", 102}
+			expectedArray := []Info{expectedItem1, expectedItem2, expectedItem3}
 
-				So(actual["Name"], ShouldEqual, info.Name)
-				So(actual["Age"], ShouldEqual, info.Age)
+			result := ExpandArray(expectedArray, "*", "Age")
 
-				makeGetCall = mockedFn
-			})
-			Convey("Fetching a valid Reference second time should NOT make GET call and replace the data correctly", func() {
-				singleLevel := SimpleSingleLevel{L: Link{Ref: "http://valid", Rel: "nothing", Verb: "GET"}}
-				info := Info{"A name", 100}
-
-				mockedFn := getContentFrom
-				makeGetCall = func(url *url.URL) string {
-					//this should not be called, so return invalid data to make the test fail in case it is called:
-					return "INVALID_DATA"
-				}
-
-				result := Expand(singleLevel, "*", "")
-				actual := result["L"].(map[string]interface{})
-
-				So(actual["Name"], ShouldEqual, info.Name)
-				So(actual["Age"], ShouldEqual, info.Age)
-
-				makeGetCall = mockedFn
-			})
-			Convey("Fetching Reference second/third/... time should make GET call when cached data is older then 24h and replace the data correctly", func() {
-				uri := "http://valid"
-				singleLevel := SimpleSingleLevel{L: Link{Ref: uri, Rel: "nothing", Verb: "GET"}}
-				info := Info{"A name", 100}
-
-				expiredTimestamp := time.Now().Unix() - (ExpanderConfig.CacheExpInSeconds + 1)
-				invalidData := "INVALID_DATA"
-
-				Cache.Remove(uri)
-				Cache.Add(uri, CacheEntry{Timestamp: expiredTimestamp, Data: invalidData})
-
-				mockedFn := getContentFrom
-				makeGetCall = func(url *url.URL) string {
-					result, _ := json.Marshal(info)
-					return string(result)
-				}
-
-				result := Expand(singleLevel, "*", "")
-				actual := result["L"].(map[string]interface{})
-
-				So(actual["Name"], ShouldEqual, info.Name)
-				So(actual["Age"], ShouldEqual, info.Age)
-
-				makeGetCall = mockedFn
-			})
+			So(len(result), ShouldEqual, 3)
+			result1 := result[0].(map[string]interface{})
+			result2 := result[1].(map[string]interface{})
+			result3 := result[2].(map[string]interface{})
+			So(result1["Name"], ShouldBeNil)
+			So(result2["Name"], ShouldBeNil)
+			So(result3["Age"], ShouldNotBeNil)
 		})
-		ExpanderConfig.UsingCache = false
+
+		Convey("Expanding should return the underlying value of the root of the array items from Mongo", func() {
+			ClearResolvers()
+			item1 := DBRef{"a collection", MongoId("123"), "a database"}
+			item2 := DBRef{"a collection", MongoId("456"), "a database"}
+			items := []DBRef{item1, item2}
+
+			info1 := Info{"A name", 100}
+			info2 := Info{"B name", 100}
+			infos := []Info{info1, info2}
+
+			uris := map[string]string{item1.Collection: "http://some-uri/id/"}
+
+			AddResolver(NewMongoDbRefResolver(uris, false))
+			mockedFn := makeGetCall
+			makeGetCall = func(murl *url.URL) ([]byte, bool) {
+				if murl.Path == "/id/123" {
+					result, _ := json.Marshal(info1)
+					return result, true
+				} else {
+					result, _ := json.Marshal(info2)
+					return result, true
+				}
+			}
+
+			result := ExpandArray(items, "*", "")
+			So(len(result), ShouldEqual, len(infos))
+
+			result1 := result[0].(map[string]interface{})
+			result2 := result[1].(map[string]interface{})
+			So(result1["Name"], ShouldEqual, info1.Name)
+			So(result2["Name"], ShouldEqual, info2.Name)
+
+			makeGetCall = mockedFn
+		})
 	})
 }
 
